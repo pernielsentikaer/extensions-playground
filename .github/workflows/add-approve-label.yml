@@ -16,7 +16,7 @@ on:
       pr_number:
         description: 'PR number'
         required: true
-        type: string
+        type: string  # String for clean input; parse to int below
 
 permissions:
   issues: write
@@ -32,9 +32,9 @@ jobs:
       id: pr_check
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          pr_state="open"
+          pr_state="open"  # Assume open for manual tests
           pr_number="${{ inputs.pr_number }}"
-          pr_number=$(echo "$pr_number" | sed 's/^#//')
+          pr_number=$(echo "$pr_number" | sed 's/^#//')  # Remove # if user adds it
         else
           pr_state="${{ github.event.pull_request.state }}"
           pr_number="${{ github.event.pull_request.number }}"
@@ -52,7 +52,7 @@ jobs:
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           reviewer_login="${{ inputs.reviewer_login }}"
-          reviewer_type="User"
+          reviewer_type="User"  # Default for manual; real events use event.review.user.type
         else
           reviewer_login="${{ github.actor }}"
           reviewer_type="${{ github.event.review.user.type }}"
@@ -119,10 +119,45 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Setup Node for Octokit
+      if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install Octokit
+      if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
+      run: npm install @octokit/rest
+
     - name: Add Approved label
       if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
-      uses: actions-ecosystem/action-add-labels@v1
-      with:
-        labels: Approved
-        github_token: ${{ secrets.RAYCAST_BOT_API_ACCESS_TOKEN }}
-        number: ${{ github.event.pull_request.number || inputs.pr_number }}
+      run: |
+        pr_number="${{ github.event.pull_request.number || inputs.pr_number }}"
+        node -e "
+          const { Octokit } = require('@octokit/rest');
+          const octokit = new Octokit({ auth: process.env.RAYCAST_BOT_API_ACCESS_TOKEN || process.env.GITHUB_TOKEN });
+          (async () => {
+            try {
+              await octokit.rest.issues.addLabels({
+                owner: '${{ github.repository_owner }}',
+                repo: '${{ github.event.repository.name }}',
+                issue_number: $pr_number,
+                labels: ['Approved']
+              });
+              console.log('Label added successfully');
+            } catch (error) {
+              console.error('Failed to add label:', error.message);
+              process.exit(1);
+            }
+          })();
+        "
+      env:
+        RAYCAST_BOT_API_ACCESS_TOKEN: ${{ secrets.RAYCAST_BOT_API_ACCESS_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Debug label outcome
+      if: always()
+      run: |
+        pr_number="${{ github.event.pull_request.number || inputs.pr_number }}"
+        echo "::debug::Label step completed - check PR #$pr_number for 'Approved' label"
