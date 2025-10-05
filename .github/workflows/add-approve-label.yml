@@ -1,5 +1,5 @@
 # Auto-labels PRs "Approved" on non-maintainer approvals.
-# Skips write+/maintain/admin users to highlight community reviews.
+# Skips write+/maintain/admin users + PR author to highlight community reviews.
 # Handles bots/externals/404s/none as allowable; only for open PRs.
 # Edge: API errors skip labeling (no job failure); idempotent adds.
 
@@ -24,7 +24,6 @@ permissions:
 jobs:
   label_on_approval:
     runs-on: ubuntu-latest
-    # Skip entire job if not approved or PR closed (real events only)
     if: >-
       (github.event_name == 'pull_request_review' && github.event.review.state == 'approved' && github.event.pull_request.state == 'open') ||
       github.event_name == 'workflow_dispatch'
@@ -53,15 +52,24 @@ jobs:
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           reviewer_login="${{ inputs.reviewer_login }}"
-          reviewer_type="User"  # Default for manual; real events use event.review.user.type
+          reviewer_type="User" 
+          pr_author_login="unknown"
         else
           reviewer_login="${{ github.actor }}"
           reviewer_type="${{ github.event.review.user.type }}"
+          pr_author_login="${{ github.event.pull_request.user.login }}"
         fi
         repo_owner="${{ github.repository_owner }}"
         repo_name="${{ github.event.repository.name }}"
 
         echo "::notice::Reviewer: $reviewer_login, Type: $reviewer_type"
+
+        # Skip if reviewer is the PR author (prevents self-approval)
+        if [[ "$reviewer_login" == "$pr_author_login" ]]; then
+          echo "should_label=false" >> $GITHUB_OUTPUT
+          echo "::notice::Skipping label: Reviewer is PR author ($reviewer_login)"
+          exit 0
+        fi
 
         # If not a human user (e.g., bot), always label
         if [[ "$reviewer_type" != "User" ]]; then
