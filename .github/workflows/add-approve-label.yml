@@ -13,39 +13,33 @@ on:
       reviewer_login:
         description: 'Reviewer GitHub handle'
         required: true
-      pr_state:
-        description: 'PR state'
-        type: choice
-        default: 'open'
-        options:
-          - open
-          - closed
       pr_number:
         description: 'PR number'
         required: true
         type: string
+
 permissions:
   issues: write
 
 jobs:
   label_on_approval:
     runs-on: ubuntu-latest
+    # Skip entire job if not approved or PR closed (real events only)
     if: >-
-      github.event_name == 'pull_request_review' && github.event.review.state == 'approved' ||
+      (github.event_name == 'pull_request_review' && github.event.review.state == 'approved' && github.event.pull_request.state == 'open') ||
       github.event_name == 'workflow_dispatch'
     steps:
     - name: Check PR state
       id: pr_check
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          pr_state="${{ inputs.pr_state }}"
+          pr_state="open"
           pr_number="${{ inputs.pr_number }}"
-          pr_number=$(echo "$pr_number" | sed 's/\.0$//')  # Strip .0 if present
+          pr_number=$(echo "$pr_number" | sed 's/^#//')
         else
           pr_state="${{ github.event.pull_request.state }}"
           pr_number="${{ github.event.pull_request.number }}"
         fi
-        echo "::debug::PR state: $pr_state, number: $pr_number"
         if [[ "$pr_state" != "open" ]]; then
           echo "::notice::PR is not open (state: $pr_state), skipping label addition"
           echo "should_label=false" >> $GITHUB_OUTPUT
