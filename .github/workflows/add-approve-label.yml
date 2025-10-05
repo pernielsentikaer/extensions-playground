@@ -8,15 +8,6 @@ name: Auto-label approved PRs (external reviewers only)
 on:
   pull_request_review:
     types: [submitted]
-  workflow_dispatch:  # Keep for testing
-    inputs:
-      reviewer_login:
-        description: 'Reviewer GitHub handle'
-        required: true
-      pr_number:
-        description: 'PR number'
-        required: true
-        type: string  # String for clean input; parse to int below
 
 permissions:
   issues: write
@@ -24,21 +15,12 @@ permissions:
 jobs:
   label_on_approval:
     runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'pull_request_review' && github.event.review.state == 'approved' && github.event.pull_request.state == 'open') ||
-      github.event_name == 'workflow_dispatch'
+    if: ${{ github.event.review.state == 'approved' && github.event.pull_request.state == 'open' }}
     steps:
     - name: Check PR state
       id: pr_check
       run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          pr_state="open"  # Assume open for manual tests
-          pr_number="${{ inputs.pr_number }}"
-          pr_number=$(echo "$pr_number" | sed 's/^#//')  # Remove # if user adds it
-        else
-          pr_state="${{ github.event.pull_request.state }}"
-          pr_number="${{ github.event.pull_request.number }}"
-        fi
+        pr_state="${{ github.event.pull_request.state }}"
         if [[ "$pr_state" != "open" ]]; then
           echo "::notice::PR is not open (state: $pr_state), skipping label addition"
           echo "should_label=false" >> $GITHUB_OUTPUT
@@ -50,13 +32,8 @@ jobs:
     - name: Check reviewer permissions
       id: check_permissions
       run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          reviewer_login="${{ inputs.reviewer_login }}"
-          reviewer_type="User"  # Default for manual; real events use event.review.user.type
-        else
-          reviewer_login="${{ github.actor }}"
-          reviewer_type="${{ github.event.review.user.type }}"
-        fi
+        reviewer_login="${{ github.actor }}"
+        reviewer_type="${{ github.event.review.user.type }}"
         repo_owner="${{ github.repository_owner }}"
         repo_name="${{ github.event.repository.name }}"
 
@@ -121,36 +98,6 @@ jobs:
 
     - name: Add Approved label
       if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
-      run: |
-        pr_number="${{ github.event.pull_request.number || inputs.pr_number }}"
-        bot_token="${{ secrets.RAYCAST_BOT_API_ACCESS_TOKEN }}"
-        token_length=${#bot_token}
-        echo "::debug::Bot token length: $token_length (if 0, secret is empty)"
-        if [ $token_length -eq 0 ]; then
-          echo "::error::RAYCAST_BOT_API_ACCESS_TOKEN is empty - cannot add label as raycastbot"
-          exit 1
-        fi
-        echo "::notice::Adding 'Approved' label to PR #$pr_number (using bot token)"
-        response=$(curl -s -w "\n%{http_code}" -X POST \
-          -H "Authorization: token $bot_token" \
-          -H "Accept: application/vnd.github.v3+json" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels" \
-          -d '{"labels":["Approved"]}')
-        http_code=$(echo "$response" | tail -n1)
-        response_body=$(echo "$response" | sed '$d')
-        echo "::debug::Label add HTTP Code: $http_code"
-        echo "::debug::Response body: $response_body"
-        if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
-          echo "::notice::Label added successfully by raycastbot"
-        else
-          echo "::error::Failed to add label (code: $http_code): $response_body"
-          exit 1
-        fi
-      env:
-        RAYCAST_BOT_API_ACCESS_TOKEN: ${{ secrets.RAYCAST_BOT_API_ACCESS_TOKEN }}
-
-    - name: Debug label outcome
-      if: always()
-      run: |
-        pr_number="${{ github.event.pull_request.number || inputs.pr_number }}"
-        echo "::debug::Label step completed - check PR #$pr_number for 'Approved' label"
+      uses: ./.github/workflows/reusable-add-approved-label.yml
+      with:
+        pr_number: ${{ github.event.pull_request.number }}
