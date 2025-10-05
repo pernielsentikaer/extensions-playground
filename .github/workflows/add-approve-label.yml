@@ -124,13 +124,13 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: ignore  # Ignore cache to avoid lock file error
+        cache: false  # Disable cache to avoid lock file error
 
     - name: Add Approved label
       if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
       run: |
         pr_number="${{ github.event.pull_request.number || inputs.pr_number }}"
-        npx @octokit/rest@latest addLabels.js --owner "${{ github.repository_owner }}" --repo "${{ github.event.repository.name }}" --issue "${pr_number}" --labels "Approved"
+        npx @octokit/rest@latest issues addLabels --owner "${{ github.repository_owner }}" --repo "${{ github.event.repository.name }}" --issue "$pr_number" --labels "Approved"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
