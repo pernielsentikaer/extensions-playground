@@ -119,20 +119,41 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Setup Bun
+    - name: Setup Node for Octokit
       if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
-      uses: oven-sh/setup-bun@v2
+      uses: actions/setup-node@v4
       with:
-        bun-version: latest
+        node-version: '20'
+        cache: 'npm'
 
-    - name: Run label script
+    - name: Install Octokit
+      if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
+      run: npm install @octokit/rest
+
+    - name: Add Approved label
       if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
       run: |
-        ls -la scripts/  # Debug: List files to confirm presence
-        bun scripts/add-approved-label.ts
+        pr_number="${{ github.event.pull_request.number || inputs.pr_number }}"
+        node -e "
+          const { Octokit } = require('@octokit/rest');
+          const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+          (async () => {
+            try {
+              await octokit.rest.issues.addLabels({
+                owner: '${{ github.repository_owner }}',
+                repo: '${{ github.event.repository.name }}',
+                issue_number: $pr_number,
+                labels: ['Approved']
+              });
+              console.log('Label added successfully');
+            } catch (error) {
+              console.error('Failed to add label:', error.message);
+              process.exit(1);
+            }
+          })();
+        "
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
     - name: Debug label outcome
       if: always()
