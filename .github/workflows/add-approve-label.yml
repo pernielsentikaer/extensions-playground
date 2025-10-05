@@ -124,7 +124,7 @@ jobs:
       run: |
         pr_number="${{ github.event.pull_request.number || inputs.pr_number }}"
         token="${{ secrets.RAYCAST_BOT_API_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}"
-        echo "::notice::Adding 'Approved' label to PR #$pr_number (token: ${{ if secrets.RAYCAST_BOT_API_ACCESS_TOKEN != '' then 'raycastbot' else 'github-actions[bot]' end }})"
+        echo "::notice::Adding 'Approved' label to PR #$pr_number (token: ${{ secrets.RAYCAST_BOT_API_ACCESS_TOKEN != '' && 'raycastbot' || 'github-actions[bot]' }})"
         gh issue edit $pr_number --add-label "Approved"
       env:
         GH_TOKEN: $token
