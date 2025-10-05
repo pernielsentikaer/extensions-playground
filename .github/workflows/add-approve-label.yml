@@ -20,7 +20,6 @@ on:
 
 permissions:
   issues: write
-  pull-requests: write  # Fixes 403 for PR labeling
 
 jobs:
   label_on_approval:
