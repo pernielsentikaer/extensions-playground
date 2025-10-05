@@ -39,7 +39,6 @@ jobs:
           pr_state="${{ github.event.pull_request.state }}"
           pr_number="${{ github.event.pull_request.number }}"
         fi
-        echo "::debug::PR state: $pr_state, number: $pr_number"
         if [[ "$pr_state" != "open" ]]; then
           echo "::notice::PR is not open (state: $pr_state), skipping label addition"
           echo "should_label=false" >> $GITHUB_OUTPUT
@@ -58,8 +57,6 @@ jobs:
           reviewer_login="${{ github.actor }}"
           reviewer_type="${{ github.event.review.user.type }}"
         fi
-        review_state="${{ github.event.review.state }}"
-        echo "::debug::Review state: $review_state"  # Debug: Log state to see why skips
         repo_owner="${{ github.repository_owner }}"
         repo_name="${{ github.event.repository.name }}"
 
@@ -122,40 +119,16 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Setup Node for Octokit
-      if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: Install Octokit
-      if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
-      run: npm install @octokit/rest
-
     - name: Add Approved label
       if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
       run: |
         pr_number="${{ github.event.pull_request.number || inputs.pr_number }}"
-        node -e "
-          const { Octokit } = require('@octokit/rest');
-          const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-          (async () => {
-            try {
-              await octokit.rest.issues.addLabels({
-                owner: '${{ github.repository_owner }}',
-                repo: '${{ github.event.repository.name }}',
-                issue_number: $pr_number,
-                labels: ['Approved']
-              });
-              console.log('Label added successfully');
-            } catch (error) {
-              console.error('Failed to add label:', error.message);
-              process.exit(1);
-            }
-          })();
-        "
+        token="${{ secrets.RAYCAST_BOT_API_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}"
+        echo "::notice::Adding 'Approved' label to PR #$pr_number (token: ${{ if secrets.RAYCAST_BOT_API_ACCESS_TOKEN != '' then 'raycastbot' else 'github-actions[bot]' end }})"
+        gh issue edit $pr_number --add-label "Approved"
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: $token
+        GH_REPO: ${{ github.repository }}
 
     - name: Debug label outcome
       if: always()
