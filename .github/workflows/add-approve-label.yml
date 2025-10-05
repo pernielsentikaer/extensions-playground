@@ -123,11 +123,9 @@ jobs:
       if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
       run: |
         pr_number="${{ github.event.pull_request.number || inputs.pr_number }}"
-        token="${{ secrets.RAYCAST_BOT_API_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}"
-        echo "::notice::Adding 'Approved' label to PR #$pr_number (token: ${{ if (secrets.RAYCAST_BOT_API_ACCESS_TOKEN != '') ; 'raycastbot' ; 'github-actions[bot]' }})"
         gh issue edit $pr_number --add-label "Approved"
       env:
-        GH_TOKEN: $token
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GH_REPO: ${{ github.repository }}
 
     - name: Debug label outcome
