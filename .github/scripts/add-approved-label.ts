@@ -1,13 +1,12 @@
 import { getOctokit } from "@actions/github";
 import * as core from "@actions/core";
 
-async function main() {
-  const octokit = getOctokit(process.env.GITHUB_TOKEN || "");
-  const prNumber = Number(core.getInput("pr_number"));
+export default async ({ github, context, core, fetch }: any) => {
+  const prNumber = Number(core.getInput("pr_number") || context.issue.number);
   const [owner, repo] = process.env.GITHUB_REPOSITORY?.split("/") || [];
 
   try {
-    await octokit.rest.issues.addLabels({
+    await github.rest.issues.addLabels({
       owner,
       repo,
       issue_number: prNumber,
@@ -18,6 +17,4 @@ async function main() {
     core.error(`Failed to add label: ${error}`);
     core.setFailed(error.message);
   }
-}
-
-main();
+};
