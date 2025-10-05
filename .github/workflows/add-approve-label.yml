@@ -127,7 +127,9 @@ jobs:
 
     - name: Run label script
       if: ${{ steps.pr_check.outputs.should_label == 'true' && steps.check_permissions.outputs.should_label == 'true' }}
-      run: bun scripts/add-approved-label.ts
+      run: |
+        ls -la scripts/  # Debug: List files to confirm presence
+        bun scripts/add-approved-label.ts
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
