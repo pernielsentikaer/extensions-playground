@@ -1,4 +1,5 @@
 name: PR Bot
+
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -8,7 +9,6 @@ on:
 
 jobs:
   pr-bot:
-    // if: github.repository == 'raycast/extensions'
     name: "PR Bot"
     runs-on: ubuntu-latest
     steps:
