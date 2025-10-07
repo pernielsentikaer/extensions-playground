@@ -8,7 +8,7 @@ on:
 
 jobs:
   pr-bot:
-    if: github.repository == 'raycast/extensions'
+    // if: github.repository == 'raycast/extensions'
     name: "PR Bot"
     runs-on: ubuntu-latest
     steps:
